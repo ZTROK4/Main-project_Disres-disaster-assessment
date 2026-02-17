@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-multipart
+
+torch
+torchvision
+torchaudio
+
+transformers
+ultralytics
+openai-whisper
+spacy
+geopy
+opencv-python
+numpy

@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider   = "prisma-client-js"
+  engineType = "binary"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+//////////////////////////////////////////////////////
+// PROJECT (one disaster instance)
+//////////////////////////////////////////////////////
+
+model Project {
+  id            String   @id @default(uuid())
+  title         String?
+  location      String
+  latitude      Float?
+  longitude     Float?
+  disasterType  String?
+  status        String   @default("CREATED")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  inputs        Input[]
+  eventSummary  EventSummary?
+  reports       Report[]
+  reconstructions Reconstruction[]
+}
+
+
+//////////////////////////////////////////////////////
+// INPUT (each uploaded file → one row)
+//////////////////////////////////////////////////////
+
+model Input {
+  id            String   @id @default(uuid())
+  projectId     String
+  fileType      String   // image | audio | video | text | drone
+  originalName  String
+  s3Key         String
+  s3Url         String
+  analysisJson  Json?    // AI output per file
+  createdAt     DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+//////////////////////////////////////////////////////
+// EVENT SUMMARY (aggregated disaster inference)
+//////////////////////////////////////////////////////
+
+model EventSummary {
+  id              String   @id @default(uuid())
+  projectId       String   @unique
+  finalDisaster   String
+  severity        String
+  confidence      Float?
+  summaryJson     Json     // aggregated inference + evidence
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+//////////////////////////////////////////////////////
+// REPORT (TextGen output – versioned)
+//////////////////////////////////////////////////////
+
+model Report {
+  id        String   @id @default(uuid())
+  projectId String
+  version   Int
+  content   String   // generated report (text / markdown)
+  createdAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+}
+
+
+//////////////////////////////////////////////////////
+// 3D RECONSTRUCTION (SfM / MVS pipeline output)
+//////////////////////////////////////////////////////
+
+model Reconstruction {
+  id            String   @id @default(uuid())
+  projectId     String
+  version       Int
+
+  status        String   @default("UPLOADED")
+  // UPLOADED | RUNNING | COMPLETED | FAILED
+
+  inputCount    Int
+  inputS3Prefix String   // S3 folder where ODM input images live
+  outputS3Prefix String? // S3 folder where ODM outputs are stored
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  completedAt      DateTime?
+  
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+  @@index([projectId])
+}

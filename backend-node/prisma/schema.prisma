@@ -33,6 +33,7 @@ model Project {
   eventSummary  EventSummary?
   reports       Report[]
   reconstructions Reconstruction[]
+  mobileReports MobileReport[]
 }
 
 
@@ -113,4 +114,62 @@ model Reconstruction {
 
   @@unique([projectId, version])
   @@index([projectId])
+}
+
+//////////////////////////////////////////////////////
+// MOBILE APP UPLOADS (citizen emergency reports)
+//////////////////////////////////////////////////////
+
+model MobileReport {
+  id              String   @id @default(uuid())
+  projectId       String?  // optional - if linked to a Project
+  userId          String?  // if you have auth system
+  originalName    String
+  s3Key           String
+  s3Url           String
+
+  latitude        Float?
+  longitude       Float?
+
+  disasterType    String?   // Gemini detected
+  severityLevel   String?   // LOW | MEDIUM | HIGH | CRITICAL
+  confidence      Float?
+  analysisJson    Json?
+
+  status          String    @default("PENDING")
+  // PENDING | CONFIRMED | REJECTED | ALERT_SENT | FALSE_ALARM
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  alertLogs AlertLog[]
+
+  @@index([projectId])
+  @@index([status])
+}
+
+//////////////////////////////////////////////////////
+// ALERT LOG (authority notifications)
+//////////////////////////////////////////////////////
+
+model AlertLog {
+  id               String   @id @default(uuid())
+  mobileReportId   String
+
+  authorityType    String   // POLICE | FIRE | HOSPITAL
+  authorityName    String   // "Kaloor Police Station"
+  phone            String?
+  email            String?
+
+  voiceStatus      String?
+  smsStatus        String?
+  emailStatus      String?
+
+  acknowledged     Boolean  @default(false)
+  createdAt        DateTime @default(now())
+
+  mobileReport MobileReport @relation(fields: [mobileReportId], references: [id], onDelete: Cascade)
+
+  @@index([mobileReportId])
 }

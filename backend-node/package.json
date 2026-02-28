@@ -16,12 +16,15 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.982.0",
     "@aws-sdk/s3-request-presigner": "^3.982.0",
+    "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.2",
-    "axios": "^1.13.3",
+    "axios": "^1.13.5",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "multer": "^2.0.2",
+    "nodemailer": "^8.0.1",
+    "twilio": "^5.12.2",
     "uuid": "^13.0.0"
   },
   "devDependencies": {

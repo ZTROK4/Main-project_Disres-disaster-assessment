@@ -120,3 +120,51 @@ exports.generateReport = async (req, res) => {
     res.end();
   }
 };
+
+exports.getReportsByProjectId = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    if (!projectId) {
+      return res.status(400).json({
+        success: false,
+        message: "Project ID is required",
+      });
+    }
+
+    const reports = await prisma.report.findMany({
+      where: { projectId },
+      select: {
+        id: true,
+        projectId: true,
+        version: true,
+        content: true,
+      },
+      orderBy: {
+        version: "desc", // latest version first
+      },
+    });
+
+    if (!reports || reports.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "No reports found for this project",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: reports.length,
+      data: reports,
+    });
+
+  } catch (error) {
+    console.error("Error fetching reports:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
+  }
+};
+
+

@@ -67,6 +67,7 @@ exports.processMobileUpload = async (file, latitude, longitude) => {
 
 const { resolveNearestAuthorities } = require("./authority.service");
 const { triggerAlertToAuthority } = require("./alert.service");
+const { getPlaceNameFromCoordinates } = require("./location.service");
 
 exports.confirmMobileReport = async (mobileReportId) => {
   const report = await prisma.mobileReport.findUnique({
@@ -100,7 +101,7 @@ exports.confirmMobileReport = async (mobileReportId) => {
     console.log(police,hospital,fire);
 
   authorities = [
-    {
+   /* {
       type: "POLICE",
       data: {
         name: "Test Police Station",
@@ -115,7 +116,7 @@ exports.confirmMobileReport = async (mobileReportId) => {
         phone: process.env.TEST_PHONE_NUMBER_1,
         email: process.env.TEST_EMAIL_1
       }
-    },
+    },*/
     {
       type: "FIRE",
       data: {
@@ -136,7 +137,13 @@ exports.confirmMobileReport = async (mobileReportId) => {
   ];
     */
   // 3️⃣ Send alert + create AlertLog entries
-  const voiceMessage = await generateEmergencyVoiceScript(report);
+  const locationName = await getPlaceNameFromCoordinates(
+  report.latitude,
+  report.longitude
+  );
+
+
+  const voiceMessage = await generateEmergencyVoiceScript(report,locationName);
   
   for (const authority of authorities) {
     if (!authority.data) continue;

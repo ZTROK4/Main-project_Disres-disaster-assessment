@@ -18,22 +18,74 @@ datasource db {
 // PROJECT (one disaster instance)
 //////////////////////////////////////////////////////
 
-model Project {
-  id            String   @id @default(uuid())
-  title         String?
-  location      String
-  latitude      Float?
-  longitude     Float?
-  disasterType  String?
-  status        String   @default("CREATED")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
+model User {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  name        String?
+  googleId    String?  @unique
+  designation String?
+  role        String   @default("USER")
+  // USER | ADMIN
 
-  inputs        Input[]
-  eventSummary  EventSummary?
-  reports       Report[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  createdProjects  Project[]        @relation("ProjectCreator")
+  memberships      ProjectMember[]
+  messages         Message[]
+}
+
+model ProjectMember {
+  id        String   @id @default(uuid())
+
+  projectId String
+  userId    String
+
+  role      String   @default("MEMBER")
+  // MEMBER | COORDINATOR | VIEWER
+
+  status    String   @default("PENDING")
+  // PENDING | APPROVED | REJECTED
+
+  joinedAt  DateTime?
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+}
+
+model Project {
+  id              String   @id @default(uuid())
+
+  mobileReport  MobileReport?
+
+  title           String?
+  location        String
+  latitude        Float?
+  longitude       Float?
+  disasterType    String?
+  status          String   @default("CREATED")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  inputs          Input[]
+  eventSummary    EventSummary?
+  chatRoom ChatRoom?
+  reports         Report[]
   reconstructions Reconstruction[]
-  mobileReports MobileReport[]
+  members ProjectMember[]
+  chatMessages ChatMessage[]
+
+  creatorId String?
+  creator   User? @relation("ProjectCreator", fields: [creatorId], references: [id])
 }
 
 
@@ -122,8 +174,7 @@ model Reconstruction {
 
 model MobileReport {
   id              String   @id @default(uuid())
-  projectId       String?  // optional - if linked to a Project
-  userId          String?  // if you have auth system
+  userId          String?
   originalName    String
   s3Key           String
   s3Url           String
@@ -131,22 +182,20 @@ model MobileReport {
   latitude        Float?
   longitude       Float?
 
-  disasterType    String?   // Gemini detected
-  severityLevel   String?   // LOW | MEDIUM | HIGH | CRITICAL
+  disasterType    String?
+  severityLevel   String?
   confidence      Float?
   analysisJson    Json?
 
   status          String    @default("PENDING")
-  // PENDING | CONFIRMED | REJECTED | ALERT_SENT | FALSE_ALARM
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  alertLogs AlertLog[]
+  projectId       String?  @unique
+  project         Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
-  @@index([projectId])
-  @@index([status])
+  alertLogs AlertLog[]
 }
 
 //////////////////////////////////////////////////////
@@ -172,4 +221,40 @@ model AlertLog {
   mobileReport MobileReport @relation(fields: [mobileReportId], references: [id], onDelete: Cascade)
 
   @@index([mobileReportId])
+}
+
+model ChatRoom {
+  id        String   @id @default(uuid())
+  projectId String   @unique
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id         String   @id @default(uuid())
+
+  chatRoomId String
+  senderId   String
+
+  content    String
+  createdAt  DateTime @default(now())
+
+  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([chatRoomId])
+  @@index([senderId])
+}
+
+model ChatMessage {
+  id        String   @id @default(uuid())
+  projectId String
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  project   Project  @relation(fields: [projectId], references: [id])
 }

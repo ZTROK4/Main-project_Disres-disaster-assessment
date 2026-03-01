@@ -6,3 +6,4 @@ class TextGenRequest(BaseModel):
     project: Dict[str, Any]
     eventSummary: Dict[str, Any]
     inputs: List[Dict[str, Any]]
+    contacts:Dict[str,Any]

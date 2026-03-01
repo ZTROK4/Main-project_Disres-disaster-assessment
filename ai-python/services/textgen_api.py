@@ -11,7 +11,8 @@ def generate_report(req: TextGenRequest):
         result = generate_text_report(
             project=req.project,
             event_summary=req.eventSummary,
-            inputs=req.inputs
+            inputs=req.inputs,
+            contacts=req.contacts,
         )
 
         return result

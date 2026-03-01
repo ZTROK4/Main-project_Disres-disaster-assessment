@@ -3,10 +3,23 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 
+const { fileTypeFromBuffer } = require("file-type");
+
 exports.analyzeDisasterImage = async (imageBuffer, mimeType) => {
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash"
   });
+
+  // 🔥 Fix MIME type properly
+  if (!mimeType || mimeType === "application/octet-stream") {
+    const detected = await fileTypeFromBuffer(imageBuffer);
+
+    if (!detected || !detected.mime.startsWith("image/")) {
+      throw new Error("Invalid or unsupported image file");
+    }
+
+    mimeType = detected.mime;
+  }
 
   const prompt = `
 You are an AI disaster assessment system.
@@ -26,19 +39,26 @@ Return STRICT JSON:
 }
 `;
 
-  const imagePart = {
-    inlineData: {
-      data: imageBuffer.toString("base64"),
-      mimeType: mimeType,
-    },
-  };
-
-  const result = await model.generateContent([prompt, imagePart]);
+  const result = await model.generateContent({
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              data: imageBuffer.toString("base64"),
+              mimeType: mimeType,
+            },
+          },
+        ],
+      },
+    ],
+  });
 
   const response = await result.response;
   const text = response.text();
 
-  // Extract JSON safely
   const jsonMatch = text.match(/\{[\s\S]*\}/);
 
   if (!jsonMatch) {
@@ -48,8 +68,7 @@ Return STRICT JSON:
   return JSON.parse(jsonMatch[0]);
 };
 
-
-exports.generateEmergencyVoiceScript = async (report) => {
+exports.generateEmergencyVoiceScript = async (report,locationName) => {
   const model = genAI.getGenerativeModel({
     model: "gemini-2.5-flash"
   });
@@ -66,6 +85,7 @@ do not mention lat and long as them , process to find the place details.
 
 Disaster Type: ${report.disasterType}
 Severity Level: ${report.severityLevel}
+location: ${locationName}
 Latitude: ${report.latitude}
 Longitude: ${report.longitude}
 

@@ -1,4 +1,8 @@
 const mobileReportService = require("../services/mobileReport.service");
+const { resolveNearestAuthorities } = require("../services/authority.service");
+const {uploadToS3} = require("../services/s3.service");
+const { analyzeProject } = require("../services/analyze.service");
+const {generateEventSummary} =require("../services/event.service");
 
 exports.analyzeMobileReport = async (req, res) => {
   try {
@@ -14,13 +18,28 @@ exports.analyzeMobileReport = async (req, res) => {
       longitude
     );
 
+    const { police, hospital, fire } =
+        await resolveNearestAuthorities(
+          latitude,
+          longitude
+        );  
+
+    const projectId= result.project?.id;
+    await uploadToS3(req.file,projectId );
+    await analyzeProject(projectId);
+    await generateEventSummary(projectId);
+
+
     return res.status(200).json({
       success: true,
-      projectId: result.project?.id || null,
+      projectId,
       mobileReportId: result.mobileReport.id,
       disasterType: result.mobileReport.disasterType,
       severity: result.mobileReport.severityLevel,
       confidence: result.mobileReport.confidence,
+      police,
+      hospital,
+      fire,
       requiresConfirmation:
         result.mobileReport.severityLevel === "HIGH" ||
         result.mobileReport.severityLevel === "CRITICAL"

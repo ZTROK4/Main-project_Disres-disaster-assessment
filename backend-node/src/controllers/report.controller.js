@@ -1,5 +1,6 @@
 const prisma = require("../db/prisma");
 const { generateTextReport } = require("../services/textgen.service");
+const { resolveNearestAuthorities } = require("../services/authority.service");
 
 exports.generateReport = async (req, res) => {
   // 🔐 CORS (MANDATORY for browser streaming)
@@ -53,11 +54,22 @@ exports.generateReport = async (req, res) => {
 
     send({ stage: "event_summary_loaded" });
 
+    const { police, hospital, fire } =
+        await resolveNearestAuthorities(
+          project.latitude,
+          project.longitude
+        );  
+
     const payload = {
       project: {
         id: project.id,
         location: project.location,
         disasterType: project.disasterType,
+      },
+      contacts:{
+        police,
+        hospital,
+        fire,
       },
       eventSummary: eventSummary.summaryJson,
       inputs: inputs.map((i) => i.analysisJson),

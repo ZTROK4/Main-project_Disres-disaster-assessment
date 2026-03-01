@@ -1,6 +1,6 @@
 const express = require("express");
 const { generateReport } = require("../controllers/report.controller");
-const { getReportsByProjectId } = require('../controllers/reports.controller');
+const { getReportsByProjectId } = require('../controllers/report.controller');
 
 
 

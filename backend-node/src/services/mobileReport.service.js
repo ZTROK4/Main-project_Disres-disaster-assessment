@@ -3,16 +3,14 @@ const { uploadToS3 } = require("./s3Upload.service");
 const { analyzeDisasterImage } = require("./gemini.service");
 const { generateEmergencyVoiceScript } = require("./gemini.service");
 
-exports.processMobileUpload = async (file, latitude, longitude) => {
+exports.processMobileUpload = async (file, latitude, longitude, userId) => {
 
-  // 1️⃣ Upload to S3 (no project yet)
   const s3Result = await uploadToS3(
     file,
     null,
     "mobile-uploads/"
   );
 
-  // 2️⃣ Call Gemini using buffer (faster than public URL)
   const geminiResult = await analyzeDisasterImage(
     file.buffer,
     file.mimetype
@@ -25,44 +23,65 @@ exports.processMobileUpload = async (file, latitude, longitude) => {
     title
   } = geminiResult;
 
-  let project = null;
+  const result = await prisma.$transaction(async (tx) => {
 
-  // 3️⃣ Create project only if valid disaster
-  if (
-    confidence > 0.75 &&
-    disaster_type !== "none" &&
-    severity !== "LOW"
-  ) {
-    project = await prisma.project.create({
+    let project = null;
+
+    if (
+      confidence > 0.75 &&
+      disaster_type !== "none" &&
+      severity !== "LOW"
+    ) {
+      project = await tx.project.create({
+        data: {
+          title,
+          location: `Lat:${latitude},Lng:${longitude}`,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+          disasterType: disaster_type,
+          status: "CREATED",
+          creatorId: userId, 
+        }
+      });
+
+      // Add creator as coordinator
+      await tx.projectMember.create({
+        data: {
+          projectId: project.id,
+          userId,
+          role: "COORDINATOR",
+          status: "APPROVED",
+          joinedAt: new Date(),
+        }
+      });
+      await tx.chatRoom.create({
       data: {
-        title,
-        location: `Lat:${latitude},Lng:${longitude}`,
+        projectId: createdProject.id
+        }
+      });
+    }
+
+    const mobileReport = await tx.mobileReport.create({
+      data: {
+        userId, 
+        projectId: project?.id || null,
+        originalName: file.originalname,
+        s3Key: s3Result.s3Key,
+        s3Url: s3Result.s3Url,
         latitude: parseFloat(latitude),
         longitude: parseFloat(longitude),
         disasterType: disaster_type,
-        status: "CREATED"
+        severityLevel: severity,
+        confidence,
+        analysisJson: geminiResult,
+        status: "PENDING"
       }
     });
-  }
 
-  // 4️⃣ Store mobile report
-  const mobileReport = await prisma.mobileReport.create({
-    data: {
-      projectId: project?.id || null,
-      originalName: file.originalname,
-      s3Key: s3Result.s3Key,
-      s3Url: s3Result.s3Url,
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
-      disasterType: disaster_type,
-      severityLevel: severity,
-      confidence,
-      analysisJson: geminiResult,
-      status: "PENDING"
-    }
+    return { project, mobileReport };
   });
 
-  return { project, mobileReport };
+  return result;
 };
 
 const { resolveNearestAuthorities } = require("./authority.service");
@@ -101,14 +120,14 @@ exports.confirmMobileReport = async (mobileReportId) => {
     console.log(police,hospital,fire);
 
   authorities = [
-   /* {
+    {
       type: "POLICE",
       data: {
         name: "Test Police Station",
         phone: process.env.TEST_PHONE_NUMBER,
         email: process.env.TEST_EMAIL
       }
-    },
+    }/*,
     {
       type: "HOSPITAL",
       data: {
@@ -116,7 +135,7 @@ exports.confirmMobileReport = async (mobileReportId) => {
         phone: process.env.TEST_PHONE_NUMBER_1,
         email: process.env.TEST_EMAIL_1
       }
-    },*/
+    },
     {
       type: "FIRE",
       data: {
@@ -124,7 +143,7 @@ exports.confirmMobileReport = async (mobileReportId) => {
         phone: process.env.TEST_PHONE_NUMBER_2,
         email: process.env.TEST_EMAIL_2
       }
-    }
+    }*/
   ];
 
   /*

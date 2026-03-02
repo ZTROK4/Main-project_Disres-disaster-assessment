@@ -235,20 +235,22 @@ model ChatRoom {
 
 model Message {
   id         String   @id @default(uuid())
-
   chatRoomId String
   senderId   String
-
   content    String
   createdAt  DateTime @default(now())
 
-  chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  // 🔁 Reply relationship
+  replyToId  String?
+  replyTo    Message?  @relation("MessageReply", fields: [replyToId], references: [id])
+  replies    Message[] @relation("MessageReply")
+
+  chatRoom   ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender     User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([chatRoomId])
-  @@index([senderId])
+  @@index([replyToId])
 }
-
 model ChatMessage {
   id        String   @id @default(uuid())
   projectId String

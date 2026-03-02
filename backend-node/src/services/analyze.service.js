@@ -16,6 +16,7 @@ exports.analyzeProject = async (projectId) => {
   const results = [];
 
   for (const input of inputs) {
+    console.log(input.s3Key);
     const analysis = await runAnalyzer({
       fileType: input.fileType,
       s3Key: input.s3Key,
@@ -31,7 +32,7 @@ exports.analyzeProject = async (projectId) => {
 
     results.push(updated);
   }
-
+  console.log("anacom",results);
   return {
     message: "Analysis completed",
     analyzedCount: results.length,

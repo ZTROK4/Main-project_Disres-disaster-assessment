@@ -5,6 +5,6 @@ const userController = require("../controllers/user.controller")
 const router = express.Router()
 
 router.get("/me", userController.getCurrentUser)
-app.use("/update", userController.updateDesignationAndName)
+router.patch("/update", userController.updateDesignationAndName)
 
 module.exports = router

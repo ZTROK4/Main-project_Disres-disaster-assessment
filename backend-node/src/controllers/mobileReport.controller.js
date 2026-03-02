@@ -3,6 +3,7 @@ const { resolveNearestAuthorities } = require("../services/authority.service");
 const {uploadToS3} = require("../services/s3.service");
 const { analyzeProject } = require("../services/analyze.service");
 const {generateEventSummary} =require("../services/event.service");
+const prisma = require("../db/prisma");
 
 exports.analyzeMobileReport = async (req, res) => {
   try {
@@ -15,7 +16,8 @@ exports.analyzeMobileReport = async (req, res) => {
     const result = await mobileReportService.processMobileUpload(
       req.file,
       latitude,
-      longitude
+      longitude,
+      req.user.id
     );
 
     const { police, hospital, fire } =
@@ -25,9 +27,25 @@ exports.analyzeMobileReport = async (req, res) => {
         );  
 
     const projectId= result.project?.id;
-    await uploadToS3(req.file,projectId );
-    await analyzeProject(projectId);
-    await generateEventSummary(projectId);
+    try {
+      const { s3Key, s3Url }=await uploadToS3(req.file,projectId );
+      await prisma.input.create({
+          data: {
+            projectId,
+            fileType: "image", // image, video, audio, text
+            originalName: req.file.originalname,
+            s3Key,
+            s3Url,
+          },
+        });
+
+    
+      await analyzeProject(projectId);
+      await generateEventSummary(projectId);
+
+    } catch (err) {
+      console.error("Post-processing failed:", err.message);
+    }
 
 
     return res.status(200).json({

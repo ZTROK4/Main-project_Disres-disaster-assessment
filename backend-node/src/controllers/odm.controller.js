@@ -9,11 +9,23 @@ exports.uploadOdmCluster = async (req, res) => {
   }
 
   try {
+
+     const running = await prisma.reconstruction.findFirst({
+  where: { projectId, status: "RUNNING" }
+    });
+
+    if (running) {
+      return res.status(400).json({
+        error: "Cannot upload new reconstruction while another is running"
+      });
+    }
     // 1️⃣ Get next ODM version
     const last = await prisma.reconstruction.findFirst({
       where: { projectId },
       orderBy: { version: "desc" },
     });
+
+   
 
     const version = last ? last.version + 1 : 1;
 

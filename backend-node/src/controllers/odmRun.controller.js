@@ -46,10 +46,20 @@ exports.runOdmReconstruction = async (req, res) => {
   const imagesDir = path.join(basePath, "images");
   fs.mkdirSync(imagesDir, { recursive: true });
 
-  await prisma.reconstruction.update({
-    where: { id: odm.id },
-    data: { status: "RUNNING" },
+  const updated = await prisma.reconstruction.updateMany({
+  where: {
+    projectId,
+    version: Number(version),
+    status: "UPLOADED"
+  },
+  data: { status: "RUNNING" }
+});
+
+if (updated.count === 0) {
+  return res.status(400).json({
+    error: "Reconstruction already running or invalid state"
   });
+}
 
   // ✅ DOWNLOAD INPUT IMAGES
   await downloadFolderFromS3(odm.inputS3Prefix, imagesDir);
@@ -127,9 +137,14 @@ exports.listReconstructions = async (req, res) => {
 
   try {
     const reconstructions = await prisma.reconstruction.findMany({
-      where: { projectId },
-      orderBy: { version: "desc" },
-    });
+  where: {
+    projectId,
+    status: {
+      in: ["RUNNING", "COMPLETED"],
+    },
+  },
+  orderBy: { version: "desc" },
+});
 
     res.json(reconstructions);
   } catch (err) {

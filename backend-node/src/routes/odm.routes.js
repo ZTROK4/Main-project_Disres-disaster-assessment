@@ -2,7 +2,7 @@
 const express = require("express");
 const upload = require("../middlewares/odmUpload");
 const { uploadOdmCluster } = require("../controllers/odm.controller");
-
+const authorizeProjectAccess = require("../middlewares/access.middleware");
 const router = express.Router();
 
 router.post(

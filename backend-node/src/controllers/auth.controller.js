@@ -2,7 +2,8 @@ const authService = require("../services/auth.service");
 
 exports.googleCallback = async (req, res) => {
   try {
-    const token = authService.generateUserToken(req.user);
+    const {user, isNewUser}  = req.user;
+    const token = authService.generateUserToken(user);
 
     const frontendOrigin = req.query.state;
 
@@ -10,7 +11,7 @@ exports.googleCallback = async (req, res) => {
     const allowedOrigins = [
       "http://localhost:3000",
       "http://localhost:5173",
-      "https://yourproductiondomain.com"
+      "https://majorproj-rho.vercel.app"
     ];
 
     if (!frontendOrigin || !allowedOrigins.includes(frontendOrigin)) {
@@ -18,9 +19,17 @@ exports.googleCallback = async (req, res) => {
     }
 
     // Redirect back to frontend with token
-    res.redirect(
-      `${frontendOrigin}/auth-success?token=${token}`
+    if (isNewUser){
+      res.redirect(
+      `${frontendOrigin}/login?token=${token}`
     );
+    }
+    else{
+      res.redirect(
+      `${frontendOrigin}/dashboard?token=${token}`
+    );
+    }
+    
 
   } catch (err) {
     res.status(500).send("Authentication failed");

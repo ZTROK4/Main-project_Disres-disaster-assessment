@@ -2,7 +2,7 @@ const prisma = require("../db/prisma")
 
 exports.getCurrentUser = async (req, res) => {
   try {
-    const userId = req.user.userId
+    const userId = req.user.id
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -21,9 +21,7 @@ exports.getCurrentUser = async (req, res) => {
 
     res.json({
       name: user.name,
-      designation: user.designation,
-      email: user.email,
-      role: user.role
+      designation: user.designation
     })
 
   } catch (error) {
@@ -34,24 +32,14 @@ exports.getCurrentUser = async (req, res) => {
 
 exports.updateDesignationAndName = async (req, res) => {
   try {
-    const userId = req.user.userId
+    const userId = req.user.id
     const { designation,name } = req.body
 
     if (!designation) {
       return res.status(400).json({ message: "Designation is required" })
     }
 
-    // Allowed list (optional but recommended)
-    const allowedDesignations = [
-      "Fire Officer",
-      "Police Officer",
-      "Medical Officer",
-      "Volunteer"
-    ]
-
-    if (!allowedDesignations.includes(designation)) {
-      return res.status(400).json({ message: "Invalid designation" })
-    }
+    
 
     // Optional: prevent changing again
     const existingUser = await prisma.user.findUnique({

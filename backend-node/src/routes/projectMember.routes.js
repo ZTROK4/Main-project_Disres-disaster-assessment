@@ -3,11 +3,13 @@ const projectMemberController = require("../controllers/projectMember.controller
 const authorizeProjectAccess = require("../middlewares/access.middleware");
 const router = express.Router();
 
-router.post("/projects/:projectId/join", projectMemberController.requestToJoin);
+router.post("/projects/join", projectMemberController.requestToJoin);
 
 router.patch("/projects/:projectId/members/:userId",authorizeProjectAccess(["COORDINATOR"]),projectMemberController.updateMemberStatus);
 
 router.patch("/projects/:projectId/members/:userId/role",authorizeProjectAccess(["COORDINATOR"]),projectMemberController.updateMemberRole);
+
+
 
 router.get("/projects/:projectId/me", authorizeProjectAccess(),projectMemberController.getMyProjectRole);
 
@@ -18,13 +20,18 @@ router.get(
 );
 
 router.get(
-  "/projects/:projectId/my-request",
+  "/projects/my-requests",
   projectMemberController.getMyJoinRequest
 );
 
 router.delete(
   "/projects/:projectId/my-request",
   projectMemberController.cancelJoinRequest
+);
+
+router.delete(
+  "/projects/:projectId/members/:userId",authorizeProjectAccess(["COORDINATOR"]),
+  projectMemberController.deleteProjectMember
 );
 
 router.get(

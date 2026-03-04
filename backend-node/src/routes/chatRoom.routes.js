@@ -12,7 +12,7 @@ Query:
 */
 router.get(
   "/projects/:projectId/chat",
-  authorizeProjectAccess(),   // only APPROVED members + creator
+  authorizeProjectAccess(),  
   chatController.getChatMessages
 );
 
@@ -25,7 +25,7 @@ Body:
 */
 router.post(
   "/projects/:projectId/chat",
-  authorizeProjectAccess(),   // only APPROVED members + creator
+  authorizeProjectAccess(),   
   chatController.sendMessage
 );
 

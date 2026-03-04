@@ -2,7 +2,11 @@ const prisma = require("../db/prisma");
 const { uploadToS3 } = require("./s3Upload.service");
 const { analyzeDisasterImage } = require("./gemini.service");
 const { generateEmergencyVoiceScript } = require("./gemini.service");
+const crypto = require("crypto");
 
+function generateJoinCode() {
+  return crypto.randomBytes(4).toString("hex").toUpperCase();
+}
 exports.processMobileUpload = async (file, latitude, longitude, userId) => {
 
   const s3Result = await uploadToS3(
@@ -26,6 +30,18 @@ exports.processMobileUpload = async (file, latitude, longitude, userId) => {
   const result = await prisma.$transaction(async (tx) => {
 
     let project = null;
+    let joinCode;
+    let exists = true;
+
+    while (exists) {
+      joinCode = generateJoinCode();
+
+      const existingProject = await tx.project.findUnique({
+        where: { joinCode }
+      });
+
+      if (!existingProject) exists = false;
+    }
 
     if (
       confidence > 0.75 &&
@@ -41,6 +57,8 @@ exports.processMobileUpload = async (file, latitude, longitude, userId) => {
           disasterType: disaster_type,
           status: "CREATED",
           creatorId: userId, 
+          joinCode,
+          joinEnabled: true
         }
       });
 

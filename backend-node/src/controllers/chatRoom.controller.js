@@ -21,6 +21,15 @@ exports.getChatMessages = async (req, res) => {
       return res.status(404).json({ error: "Chat room not found" });
     }
 
+    const io = req.app.get("io");
+    /*
+    if (req.headers["socket-id"]) {
+      const socket = io.sockets.sockets.get(req.headers["socket-id"]);
+      if (socket) {
+        socket.join(projectId);
+      }
+    }
+    */
     const messages = await prisma.message.findMany({
       where: { chatRoomId: chatRoom.id },
       take: Number(limit),
@@ -123,6 +132,8 @@ exports.sendMessage = async (req, res) => {
   const { content, replyToId } = req.body;
   const userId = req.user.id;
 
+  const io = req.app.get("io"); // ✅ get socket instance
+
   if (!content?.trim()) {
     return res.status(400).json({ error: "Message cannot be empty" });
   }
@@ -156,7 +167,7 @@ exports.sendMessage = async (req, res) => {
       }
     }
 
-    // 1️⃣ Create user message
+    // 1️⃣ Save user message
     const userMessage = await prisma.message.create({
       data: {
         chatRoomId: chatRoom.id,
@@ -166,22 +177,14 @@ exports.sendMessage = async (req, res) => {
       },
       include: {
         sender: {
-          select: {
-            id: true,
-            name: true,
-            designation: true
-          }
+          select: { id: true, name: true, designation: true }
         },
         replyTo: {
           select: {
             id: true,
             content: true,
             sender: {
-              select: {
-                id: true,
-                name: true,
-                designation: true
-              }
+              select: { id: true, name: true, designation: true }
             }
           }
         }
@@ -190,12 +193,27 @@ exports.sendMessage = async (req, res) => {
 
     let aiMessage = null;
 
+    // 🔴 Emit user message immediately (instant UX)
+    const enrichedUser = (
+      await enrichMessagesWithRoles(
+        [userMessage],
+        projectId,
+        chatRoom.project.creatorId
+      )
+    )[0];
+
+    io.to(projectId).emit("newMessage", {
+      userMessage: enrichedUser,
+      aiMessage: null
+    });
+
     // 2️⃣ AI trigger
     if (content.trim().startsWith("@MitigateAI")) {
 
-      const cleanPrompt = content
-        .replace("@MitigateAI", "")
-        .trim();
+      const cleanPrompt = content.replace("@MitigateAI", "").trim();
+
+      // 🔥 optional typing indicator
+      io.to(projectId).emit("aiTyping");
 
       const aiReply = await chatService.processProjectChatAI({
         projectId,
@@ -212,43 +230,39 @@ exports.sendMessage = async (req, res) => {
         },
         include: {
           sender: {
-            select: {
-              id: true,
-              name: true,
-              designation: true
-            }
+            select: { id: true, name: true, designation: true }
           },
           replyTo: {
             select: {
               id: true,
               content: true,
               sender: {
-                select: {
-                  id: true,
-                  name: true,
-                  designation: true
-                }
+                select: { id: true, name: true, designation: true }
               }
             }
           }
         }
       });
+
+      const enrichedAI = (
+        await enrichMessagesWithRoles(
+          [aiMessage],
+          projectId,
+          chatRoom.project.creatorId
+        )
+      )[0];
+
+      // 🔴 Emit AI message separately when ready
+      io.to(projectId).emit("newMessage", {
+        userMessage: null,
+        aiMessage: enrichedAI
+      });
     }
 
-    // 🔥 Enrich BOTH messages in ONE query
-    const messagesToEnrich = aiMessage
-      ? [userMessage, aiMessage]
-      : [userMessage];
-
-    const enrichedMessages = await enrichMessagesWithRoles(
-      messagesToEnrich,
-      projectId,
-      chatRoom.project.creatorId
-    );
-
+    // ✅ Still return REST response
     res.status(201).json({
-      userMessage: enrichedMessages[0],
-      aiMessage: enrichedMessages[1] || null
+      userMessage: enrichedUser,
+      aiMessage
     });
 
   } catch (err) {
@@ -256,7 +270,6 @@ exports.sendMessage = async (req, res) => {
     res.status(500).json({ error: "Failed to send message" });
   }
 };
-
 
 async function enrichMessagesWithRoles(messages, projectId, creatorId) {
 

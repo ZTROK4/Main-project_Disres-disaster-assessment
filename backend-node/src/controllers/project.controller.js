@@ -1,5 +1,9 @@
 const prisma = require("../db/prisma");
+const crypto = require("crypto");
 
+function generateJoinCode() {
+  return crypto.randomBytes(4).toString("hex").toUpperCase();
+}
 exports.createProject = async (req, res) => {
   try {
     const { title, location, latitude, longitude, disasterType } = req.body;
@@ -9,6 +13,21 @@ exports.createProject = async (req, res) => {
     }
 
     const project = await prisma.$transaction(async (tx) => {
+
+      // 🔐 Generate unique join code
+      let joinCode;
+      let exists = true;
+
+      while (exists) {
+        joinCode = generateJoinCode();
+
+        const existingProject = await tx.project.findUnique({
+          where: { joinCode }
+        });
+
+        if (!existingProject) exists = false;
+      }
+
       const createdProject = await tx.project.create({
         data: {
           title,
@@ -17,6 +36,8 @@ exports.createProject = async (req, res) => {
           longitude,
           disasterType,
           creatorId: req.user.id,
+          joinCode,
+          joinEnabled: true
         },
       });
 
@@ -31,14 +52,16 @@ exports.createProject = async (req, res) => {
       });
 
       await tx.chatRoom.create({
-      data: {
-        projectId: createdProject.id
-      }
+        data: {
+          projectId: createdProject.id
+        }
       });
 
       return createdProject;
-      });
+    });
+
     res.status(201).json(project);
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to create project" });
@@ -135,12 +158,12 @@ exports.getMyProjects = async (req, res) => {
       const isCreator = project.creatorId === userId;
 
       let role = null;
-
       if (isCreator) {
         role = "CREATOR";
       } else if (project.members.length > 0) {
         role = project.members[0].role;
       }
+  
 
       return {
         id: project.id,
@@ -151,6 +174,7 @@ exports.getMyProjects = async (req, res) => {
         longitude: project.longitude,
         role
       };
+    
     });
 
     res.json({
@@ -161,5 +185,49 @@ exports.getMyProjects = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to fetch projects" });
+  }
+};
+
+exports.getJoinCode = async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const userId = req.user.id;
+
+    // 1️⃣ Check membership
+    const member = await prisma.projectMember.findFirst({
+      where: {
+        projectId,
+        userId
+      }
+    });
+
+    if (!member) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Optional: Only coordinator can view
+    if (member.role !== "COORDINATOR") {
+      return res.status(403).json({ error: "Only coordinator can view join code" });
+    }
+
+    // 2️⃣ Get project
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: {
+        joinCode: true
+      }
+    });
+
+    if (!project) {
+      return res.status(404).json({ error: "Project not found" });
+    }
+
+    res.json({
+      joinCode: project.joinCode,
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch join code" });
   }
 };

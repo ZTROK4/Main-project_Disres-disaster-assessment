@@ -1,34 +1,73 @@
 const prisma = require("../db/prisma");
 
 exports.requestToJoin = async (req, res) => {
-  const { projectId } = req.params;
+  const { joinCode } = req.body;
   const userId = req.user.id;
 
   try {
+    if (!joinCode) {
+      return res.status(400).json({
+        message: "Join code is required"
+      });
+    }
+
+    // 1️⃣ Find project by joinCode
+    const project = await prisma.project.findUnique({
+      where: { joinCode }
+    });
+
+    if (!project) {
+      return res.status(404).json({
+        message: "Invalid join code"
+      });
+    }
+
+    if (!project.joinEnabled) {
+      return res.status(403).json({
+        message: "Joining is disabled for this project"
+      });
+    }
+
+    // 2️⃣ Check existing membership
     const existing = await prisma.projectMember.findUnique({
       where: {
-        projectId_userId: { projectId, userId }
+        projectId_userId: {
+          projectId: project.id,
+          userId
+        }
       }
     });
 
     if (existing) {
-      return res.status(400).json({
-        message: "Already requested or member"
-      });
+      if (existing.status === "APPROVED") {
+        return res.status(400).json({
+          message: "You are already a member of this project"
+        });
+      }
+
+      if (existing.status === "PENDING") {
+        return res.status(400).json({
+          message: "Your join request is already pending approval"
+        });
+      }
     }
 
+    // 3️⃣ Create pending request
     await prisma.projectMember.create({
       data: {
-        projectId,
+        projectId: project.id,
         userId,
         role: "MEMBER",
         status: "PENDING"
       }
     });
 
-    res.json({ message: "Join request sent" });
+    res.json({
+      message: "Join request sent successfully. Waiting for approval."
+    });
 
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Request failed" });
   }
 };
@@ -59,7 +98,23 @@ exports.updateMemberStatus = async (req, res) => {
   }
 };
 
+exports.deleteProjectMember = async (req, res) => {
+  const { projectId, userId } = req.params;
+  console.log("asdasdasd",projectId,userId);
+  try {
+    await prisma.projectMember.delete({
+      where: {
+        projectId_userId: { projectId, userId }
+      }
+    });
 
+    res.json({ message: "Member removed successfully" });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to remove member" });
+  }
+};
 exports.updateMemberRole = async (req, res) => {
   const { projectId, userId } = req.params;
   const { role } = req.body; // "COORDINATOR" or "MEMBER"
@@ -172,7 +227,8 @@ exports.getMyProjectRole = async (req, res) => {
           canPromoteMembers: false,
           canRunReconstruction: false,
           canGenerateReport: false,
-          canDeleteProject: false
+          canDeleteProject: false,
+          canChat: true
         }
       });
     }
@@ -189,7 +245,8 @@ exports.getMyProjectRole = async (req, res) => {
         canPromoteMembers: isApproved && isCoordinator,
         canRunReconstruction: isApproved && isCoordinator,
         canGenerateReport: isApproved && isCoordinator,
-        canDeleteProject: false
+        canDeleteProject: false,
+        canChat: true
       }
     });
 
@@ -237,32 +294,38 @@ exports.getPendingRequests = async (req, res) => {
 
 
 exports.getMyJoinRequest = async (req, res) => {
-  const { projectId } = req.params;
   const userId = req.user.id;
 
   try {
-    const membership = await prisma.projectMember.findUnique({
+    const requests = await prisma.projectMember.findMany({
       where: {
-        projectId_userId: { projectId, userId }
-      }
+        userId,
+        status: "PENDING",
+      },
+      include: {
+        project: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
     });
 
-    if (!membership) {
-      return res.json({
-        exists: false,
-        message: "No request found"
-      });
-    }
-
-    return res.json({
-      exists: true,
-      role: membership.role,
-      status: membership.status,
-      joinedAt: membership.joinedAt
-    });
-
+    const formatted = requests.map((r) => ({
+      id: r.id,
+      projectId: r.project.id,
+      projectTitle: r.project.title,
+      role: r.role,
+      status: r.status,
+    }));
+    console.log(formatted);
+    res.json(formatted);
   } catch (err) {
-    res.status(500).json({ error: "Failed to fetch request" });
+    res.status(500).json({ error: "Failed to fetch requests" });
   }
 };
 
@@ -330,23 +393,25 @@ exports.getProjectMembers = async (req, res) => {
 
     // 2️⃣ Fetch only APPROVED members
     const members = await prisma.projectMember.findMany({
-      where: {
-        projectId,
-        status: "APPROVED"
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            designation: true
-          }
-        }
-      },
-      orderBy: { createdAt: "asc" }
-    });
-
+  where: {
+    projectId,
+    status: "APPROVED",
+    userId: {
+      not: project.creatorId   // ⬅ exclude creator
+    }
+  },
+  include: {
+    user: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        designation: true
+      }
+    }
+  },
+  orderBy: { createdAt: "asc" }
+});
     // 3️⃣ Format response
     const formattedMembers = [
       {

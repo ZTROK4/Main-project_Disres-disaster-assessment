@@ -6,7 +6,7 @@ const router = express.Router();
 
 router.post(
   "/projects/:projectId/upload",
-  authorizeProjectAccess(),
+  authorizeProjectAccess(["COORDINATOR"]),
   upload.array("files"),
   uploadCluster
 );

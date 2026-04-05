@@ -11,7 +11,7 @@ exports.googleCallback = async (req, res) => {
     const allowedOrigins = [
       "http://localhost:3000",
       "http://localhost:5173",
-      "https://majorproj-rho.vercel.app"
+      "https://majorproj2.vercel.app"
     ];
 
     if (!frontendOrigin || !allowedOrigins.includes(frontendOrigin)) {

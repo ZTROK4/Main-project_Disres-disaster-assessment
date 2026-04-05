@@ -7,6 +7,7 @@ const router = express.Router();
 
 router.post(
   "/projects/:projectId/odm/upload",
+  authorizeProjectAccess(["COORDINATOR"]),
   upload.array("images", 500), // ODM usually needs MANY images
   uploadOdmCluster
 );

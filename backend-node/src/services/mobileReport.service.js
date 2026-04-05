@@ -74,7 +74,7 @@ exports.processMobileUpload = async (file, latitude, longitude, userId) => {
       });
       await tx.chatRoom.create({
       data: {
-        projectId: createdProject.id
+        projectId: project.id
         }
       });
     }

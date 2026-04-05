@@ -1,8 +1,9 @@
 const express = require("express");
 const passport = require("passport");
 const authController = require("../controllers/auth.controller");
-
+const authMobileController= require("../controllers/authMobile.controller");
 const router = express.Router();
+
 
 // STEP 1: Google login route
 router.get("/google", (req, res, next) => {
@@ -20,5 +21,7 @@ router.get(
   passport.authenticate("google", { session: false }),
   authController.googleCallback
 );
+
+router.post("/google/mobile", authMobileController.mobileGoogleAuth);
 
 module.exports = router;

@@ -3,11 +3,11 @@ const prisma = require("../db/prisma");
 function authorizeMobileReportAccess() {
   return async (req, res, next) => {
     try {
-      const { mobileReportId } = req.params;
+      const { id } = req.params;
       const userId = req.user.id;
 
       const mobileReport = await prisma.mobileReport.findUnique({
-        where: { id: mobileReportId },
+        where: { id: id },
         select: { id: true, userId: true, projectId: true }
       });
 
